@@ -75,6 +75,24 @@ public sealed class TelemetryTests
     }
 
     [Test]
+    public async Task Extraction_time_is_bucketed_in_seconds_with_resolution_below_one()
+    {
+        // The default buckets are sized for milliseconds; with them a 40ms extraction reported a p95 of
+        // 4.75s on the dashboard.
+        using var telemetry = new Telemetry();
+        Histogram<double>? histogram = null;
+        using var listener = new MeterListener
+        {
+            InstrumentPublished = (i, _) => histogram ??= i is Histogram<double> { Name: "ticketdesk.extraction.duration" } h ? h : null,
+        };
+        listener.Start();
+
+        var boundaries = histogram!.Advice!.HistogramBucketBoundaries!;
+        await Assert.That(boundaries.Count(b => b < 1)).IsGreaterThanOrEqualTo(5);
+        await Assert.That(boundaries.Max()).IsGreaterThanOrEqualTo(30);
+    }
+
+    [Test]
     public async Task The_scripted_gateway_costs_nothing_rather_than_failing_to_be_priced()
     {
         using var recorder = new Recorder();
