@@ -61,6 +61,12 @@ public sealed class Telemetry : IDisposable
         }
     }
 
+    public void Unavailable(double seconds)
+    {
+        this.failures.Add(1, new KeyValuePair<string, object?>("kind", "ModelUnavailable"));
+        this.duration.Record(seconds, new KeyValuePair<string, object?>("outcome", "failed"));
+    }
+
     public void Dispose() => this.meter.Dispose();
 
     private void Spent(ModelSpend spend)
