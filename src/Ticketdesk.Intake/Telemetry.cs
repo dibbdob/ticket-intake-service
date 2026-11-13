@@ -28,8 +28,18 @@ public sealed class Telemetry : IDisposable
         this.failures = this.meter.CreateCounter<long>("ticketdesk.extraction.failures", description: "Emails that could not be extracted, by why.");
         this.tokens = this.meter.CreateCounter<long>("ticketdesk.extraction.tokens", description: "Tokens used, by model and kind (input, output, cache_read, cache_write).");
         this.cost = this.meter.CreateCounter<double>("ticketdesk.extraction.cost", unit: "USD", description: "Estimated cost at list prices, by model.");
-        this.duration = this.meter.CreateHistogram<double>("ticketdesk.extraction.duration", unit: "s", description: "Time from email to extraction, retries included.");
+        // OpenTelemetry's default buckets (0, 5, 10, 25, ... 10000) are sized for milliseconds. Recorded in
+        // seconds, every extraction lands in the first bucket and a percentile is an interpolation across
+        // five seconds. These boundaries are sized for what an extraction takes.
+        this.duration = this.meter.CreateHistogram<double>(
+            "ticketdesk.extraction.duration",
+            unit: "s",
+            description: "Time from email to extraction, retries included.",
+            tags: null,
+            advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = DurationBuckets });
     }
+
+    public static readonly double[] DurationBuckets = [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 4, 8, 15, 30, 60];
 
     public void Extracted(ExtractionResult result, string priority, double seconds)
     {
