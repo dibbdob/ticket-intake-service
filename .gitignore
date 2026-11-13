@@ -1,0 +1,5 @@
+bin/
+obj/
+TestResults/
+.env
+.DS_Store
