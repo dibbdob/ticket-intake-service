@@ -1,0 +1,47 @@
+# The same telemetry stack as the Compose setup (OpenTelemetry collector, Prometheus, Tempo, Loki, Grafana
+# in one image), with the service's dashboard provisioned. In production this would be a managed service;
+# here it shows where the service's traces, metrics and logs go.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm
+  namespace: observability
+  labels: { app: lgtm }
+spec:
+  selector:
+    matchLabels: { app: lgtm }
+  template:
+    metadata:
+      labels: { app: lgtm }
+    spec:
+      containers:
+        - name: lgtm
+          image: grafana/otel-lgtm:0.40.0
+          ports:
+            - { name: grafana, containerPort: 3000 }
+            - { name: otlp-grpc, containerPort: 4317 }
+            - { name: prometheus, containerPort: 9090 }
+          readinessProbe:
+            httpGet: { path: /api/health, port: grafana }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { memory: 2Gi }
+          volumeMounts:
+            - { name: dashboard, mountPath: /otel-lgtm/ticketdesk-dashboard.json, subPath: ticketdesk-dashboard.json }
+            - { name: provider, mountPath: /otel-lgtm/grafana/conf/provisioning/dashboards/ticketdesk.yaml, subPath: ticketdesk.yaml }
+      volumes:
+        - { name: dashboard, configMap: { name: grafana-dashboard } }
+        - { name: provider, configMap: { name: grafana-dashboard-provider } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm
+  namespace: observability
+spec:
+  selector: { app: lgtm }
+  ports:
+    - { name: grafana, port: 3000, targetPort: grafana }
+    - { name: otlp-grpc, port: 4317, targetPort: otlp-grpc }
+    - { name: prometheus, port: 9090, targetPort: prometheus }

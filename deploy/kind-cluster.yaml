@@ -1,0 +1,9 @@
+# A local Kubernetes cluster for the service: one control-plane node and two workers, so the autoscaler's
+# extra replicas have somewhere to go. scripts/cluster-up.sh creates it; scripts/cluster-down.sh removes it.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ticketdesk
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker

@@ -1,0 +1,121 @@
+# The intake service (ADR 0002). What Azure Container Apps, Key Vault and a managed identity did, here:
+#   the API key     a Secret, created by scripts/cluster-up.sh from the ignored .env, never in this file
+#   identity        its own service account, with no access to the Kubernetes API, which it never needs
+#   scaling         1 to 3 replicas by CPU; 4 extractions per replica, so at most 12 calls to the API at once
+#   health          startup, readiness and liveness probes on /healthz
+#   containment     non-root, read-only filesystem, no capabilities, resource requests and limits
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: intake
+  namespace: ticketdesk
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intake
+  namespace: ticketdesk
+  labels: { app: intake }
+spec:
+  selector:
+    matchLabels: { app: intake }
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  template:
+    metadata:
+      labels: { app: intake }
+    spec:
+      serviceAccountName: intake
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: intake
+          image: ticketdesk-intake:local
+          imagePullPolicy: Never
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: Extraction__Mode, value: scripted }
+            - { name: Extraction__Model, value: claude-haiku-5-5 }
+            # Concurrent extractions per replica. Times the autoscaler's maximum, this is the most the
+            # service asks of the API at once; raise either only against the API's rate limit.
+            - { name: Extraction__Concurrency, value: "4" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://lgtm.observability:4317" }
+            - { name: OTEL_METRIC_EXPORT_INTERVAL, value: "5000" }
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                # Absent in scripted mode; scripts/cluster-up.sh --live creates it from .env.
+                secretKeyRef: { name: anthropic-api-key, key: api-key, optional: true }
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: intake
+  namespace: ticketdesk
+spec:
+  selector: { app: intake }
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: intake
+  namespace: ticketdesk
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: intake }
+  # One always up, so the first email of the day does not wait for a cold start; at most three (ADR 0002).
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
+---
+# Only what the service needs: requests in, and out to DNS, the telemetry stack and the Claude API.
+# Enforced only by a cluster whose network plugin supports policies; kind's default one does not.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: intake
+  namespace: ticketdesk
+spec:
+  podSelector:
+    matchLabels: { app: intake }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - ports: [{ port: 8080, protocol: TCP }]
+  egress:
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: observability }
+      ports: [{ port: 4317, protocol: TCP }]
+    - ports: [{ port: 443, protocol: TCP }]
