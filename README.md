@@ -92,8 +92,13 @@ needs an API key in an ignored `.env`, and a spend limit on the key.
   loaded the dashboard; under load the autoscaler went from one replica to its ceiling of three, across
   both workers, with no restarts.
 - **Run on GitHub:** `./build.sh`, by the `build` workflow on every push to `main` and every pull request.
-- **Not yet verified:** live mode against the Claude API, locally or on the cluster (`--live`), which needs a
-  decision about spending money; and a cloud deployment, with the changes ADR 0002 lists (a registry, a
+- **Verified live, on the kind cluster (`--live`), on 2026-11-13:** the key reached the pod from a Secret
+  and `/healthz` reported live mode on Claude Haiku 5.5. Four emails were extracted in about 1.5 seconds
+  each, for $0.0005 in all: an Enterprise outage became urgent, a question low, a double charge normal and
+  frustrated; an email telling the model to mark itself an outage was classified as the dashboard bug it
+  also described and sent to a person. A retry returned 200 and made no second ticket. Prometheus counted
+  four tickets, their tokens and cost; Tempo held the traces.
+- **Not yet verified:** a cloud deployment, with the changes ADR 0002 lists (a registry, a
   secret store through workload identity, an enforcing network plugin, TLS).
 
 ## Layout
