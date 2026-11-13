@@ -32,10 +32,12 @@ public sealed class Intake(IExtractor extractor, TicketStore store, Telemetry te
             telemetry.Failed(failure, Stopwatch.GetElapsedTime(started).TotalSeconds);
             ticket = this.Unextracted(email, received, failure.Kind.ToString(), failure.Attempts);
         }
-        catch (Exception error) when (error is AnthropicException or HttpRequestException or TimeoutException)
+        catch (Exception error) when (error is AnthropicException or HttpRequestException or TimeoutException or OperationCanceledException)
         {
             // The model could not be reached, or the API refused the call (rate limit, overload, an expired
             // key). Retrying is the SDK's job and it has already done so; the email still has to be kept.
+            // HttpClient reports its own timeout as a cancellation, so a cancelled call is kept the same way,
+            // as is one whose caller went away: the email arrived, and a retry with its key will find it.
             telemetry.Unavailable(Stopwatch.GetElapsedTime(started).TotalSeconds);
             ticket = this.Unextracted(email, received, "ModelUnavailable", 0);
             log.LogWarning("Model unavailable for an email: {ErrorType}", error.GetType().Name);

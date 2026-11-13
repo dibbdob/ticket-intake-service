@@ -74,19 +74,28 @@ app.MapPost("/tickets", async (NewTicket body, HttpRequest request, Intake intak
         return Results.Problem(statusCode: 413, title: $"The email is {body.Email.Length} characters; the limit is {NewTicket.MaxLength}.");
     }
 
-    // A client that retries after a timeout sends the same key, and gets the ticket it already created.
+    // A client that retries after a timeout sends the same key, and gets the ticket it already created, even
+    // when the retry arrives while the first request is still being extracted.
     var key = request.Headers["Idempotency-Key"].ToString();
-    if (key.Length > 0 && store.ForKey(key) is { } seen)
-    {
-        return seen.Email == body.Email
-            ? Results.Ok(store.Find(seen.TicketId))
-            : Results.Problem(statusCode: 422, title: "This Idempotency-Key was used for a different email.");
-    }
-
-    var ticket = await intake.Receive(body.Email, ct);
+    StoredTicket ticket;
     if (key.Length > 0)
     {
-        ticket = store.Remember(key, ticket);
+        var keyed = await store.ForKey(key, body.Email, () => intake.Receive(body.Email, ct));
+        if (keyed.Conflict)
+        {
+            return Results.Problem(statusCode: 422, title: "This Idempotency-Key was used for a different email.");
+        }
+
+        if (!keyed.Created)
+        {
+            return Results.Ok(keyed.Ticket);
+        }
+
+        ticket = keyed.Ticket!;
+    }
+    else
+    {
+        ticket = await intake.Receive(body.Email, ct);
     }
 
     // 201 when the ticket is extracted; 202 when it is kept for a person to read first.

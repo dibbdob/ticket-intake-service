@@ -91,6 +91,55 @@ public sealed class ProductionTests
     }
 
     [Test]
+    public async Task Two_posts_with_the_same_key_at_the_same_moment_make_one_ticket()
+    {
+        // A client that times out and retries can send its second post while the first is still with the
+        // model. Both must get the one ticket, and the model must be asked once.
+        var release = new TaskCompletionSource<ExtractionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        await using var service = new Service(new StubExtractor(() =>
+        {
+            Interlocked.Increment(ref calls);
+            return release.Task;
+        }));
+        var client = service.CreateClient();
+        Task<HttpResponseMessage> Post(string email)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/tickets") { Content = JsonContent.Create(new { email }) };
+            request.Headers.Add("Idempotency-Key", "same-moment");
+            return client.SendAsync(request);
+        }
+
+        var first = Post(Email);
+        var second = Post(Email);
+        await Task.Delay(300);
+        var different = Post("Something else entirely.");
+        await Task.Delay(300);
+        release.SetResult(new ExtractionResult(new TicketExtraction("outage", true, "enterprise", "api", "angry", false, "s"), 1, new TokenUsage(1, 1), "scripted"));
+        var both = await Task.WhenAll(first, second);
+        var other = await different;
+
+        var ids = await Task.WhenAll(both.Select(async r => (await Json(r)).GetProperty("id").GetString()));
+        await Assert.That(ids[0]).IsEqualTo(ids[1]);
+        await Assert.That(both.Select(r => r.StatusCode).Order()).IsEquivalentTo(new[] { HttpStatusCode.OK, HttpStatusCode.Created });
+        await Assert.That(calls).IsEqualTo(1);
+        await Assert.That(other.StatusCode).IsEqualTo(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Test]
+    public async Task An_email_whose_model_call_times_out_is_kept_for_a_person()
+    {
+        // HttpClient reports its own timeout as a cancellation, not as a TimeoutException.
+        await using var service = new Service(new StubExtractor(() =>
+            throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout of 100 seconds elapsing.")));
+
+        var response = await service.CreateClient().PostAsJsonAsync("/tickets", new { email = Email });
+
+        await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Accepted);
+        await Assert.That((await Json(response)).GetProperty("unextracted_reason").GetString()).IsEqualTo("ModelUnavailable");
+    }
+
+    [Test]
     public async Task Beyond_the_concurrency_limit_and_its_queue_a_caller_is_told_to_come_back()
     {
         // One extraction at a time, a queue of four, and every extraction held until released.
