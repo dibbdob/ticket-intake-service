@@ -91,6 +91,7 @@ needs an API key in an ignored `.env`, and a spend limit on the key.
   and a retry with its key returned it; the cluster's Prometheus counted every ticket sent, and Grafana
   loaded the dashboard; under load the autoscaler went from one replica to its ceiling of three, across
   both workers, with no restarts.
+- **Run on GitHub:** `./build.sh`, by the `build` workflow on every push to `main` and every pull request.
 - **Not yet verified:** live mode against the Claude API, locally or on the cluster (`--live`), which needs a
   decision about spending money; and a cloud deployment, with the changes ADR 0002 lists (a registry, a
   secret store through workload identity, an enforcing network plugin, TLS).
