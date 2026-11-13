@@ -1,0 +1,21 @@
+# The service as it would run on any Kubernetes: a local kind cluster here, a cloud's managed Kubernetes in
+# production (ADR 0002). Render with: kubectl kustomize --load-restrictor LoadRestrictionsNone deploy
+#
+# Two namespaces: ticketdesk for the service, held to Kubernetes' "restricted" pod security standard, and
+# observability for the off-the-shelf telemetry stack, which runs as root and so cannot meet it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - intake.yaml
+  - observability.yaml
+configMapGenerator:
+  # The same dashboard as the Compose stack, from grafana/, provisioned into Grafana at start-up.
+  - name: grafana-dashboard
+    namespace: observability
+    files:
+      - ../grafana/ticketdesk-dashboard.json
+  - name: grafana-dashboard-provider
+    namespace: observability
+    files:
+      - ticketdesk.yaml=../grafana/ticketdesk-provider.yaml
