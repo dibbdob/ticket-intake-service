@@ -28,6 +28,7 @@ git log --graph --format='%h %s%n%b' main
 | 3 | `run-locally` | It had only ever run inside a test |
 | 4 | `production-concerns` | A model failure lost the customer's email; retries duplicated tickets; bursts piled up |
 | 5 | `operations` | Only the author could run it, and nothing said how it would be deployed |
+| 6 | `live-run` | It had only ever run in scripted mode: nothing showed the model's answers, or the copied extraction code, working for real |
 
 Three faults were found by looking at the running system, not by the tests, and each is in the commit
 that fixed it:
