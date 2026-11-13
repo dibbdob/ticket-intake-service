@@ -18,30 +18,7 @@ public sealed class AnthropicGateway(AnthropicClient client) : IModelGateway
 
     public async Task<ModelReply> Complete(ModelRequest request, CancellationToken cancellationToken)
     {
-        var fallback = SupportsServerFallback(request.Model);
-        var response = await client.Beta.Messages.Create(
-            new MessageCreateParams
-            {
-                Model = request.Model,
-                MaxTokens = 2048,
-                // A cache breakpoint on the system prompt: the schema and system prompt are the stable
-                // prefix, the email is not. A prefix shorter than the model's minimum silently does not
-                // cache, so the eval reports cache-read tokens rather than assuming a hit.
-                System = new List<BetaTextBlockParam>
-                {
-                    new() { Text = request.System, CacheControl = request.CacheSystem ? new BetaCacheControlEphemeral() : null },
-                },
-                Messages = request.Turns.Select(ToParam).ToList(),
-                // Classification does well at low effort; Claude Opus 5.5 defaults to medium.
-                OutputConfig = new()
-                {
-                    Effort = Effort.Low,
-                    Format = request.Schema is { } schema ? new() { Schema = schema.ToDictionary() } : null,
-                },
-                Betas = fallback ? [FallbackBeta] : null,
-                Fallbacks = fallback ? (BetaFallbacksParam)new Default() : null,
-            },
-            cancellationToken: cancellationToken);
+        var response = await client.Beta.Messages.Create(ToParams(request), cancellationToken: cancellationToken);
 
         var text = string.Concat(response.Content.Select(b => b.Value).OfType<BetaTextBlock>().Select(t => t.Text));
         var usage = new TokenUsage(
@@ -51,6 +28,36 @@ public sealed class AnthropicGateway(AnthropicClient client) : IModelGateway
             response.Usage.CacheCreationInputTokens ?? 0);
         return new ModelReply(text, response.StopReason?.Raw() ?? "unknown", usage, response.Model.Raw());
     }
+
+    /// <summary>
+    /// The request as it will be sent. A field the SDK is given, even as null, goes on the wire, and the API
+    /// refuses `fallbacks` on a model without server-side fallback; so the fallback fields are set only for
+    /// the models that have it.
+    /// </summary>
+    public static MessageCreateParams ToParams(ModelRequest request)
+    {
+        var common = new MessageCreateParams
+        {
+            Model = request.Model,
+            MaxTokens = 2048,
+            // A cache breakpoint on the system prompt: the schema and system prompt are the stable prefix,
+            // the email is not. A prefix shorter than the model's minimum silently does not cache, so the
+            // eval reports cache-read tokens rather than assuming a hit.
+            System = new List<BetaTextBlockParam> { SystemBlock(request) },
+            Messages = request.Turns.Select(ToParam).ToList(),
+            // Classification does well at low effort; Claude Opus 5.5 defaults to medium.
+            OutputConfig = request.Schema is { } schema
+                ? new() { Effort = Effort.Low, Format = new() { Schema = schema.ToDictionary() } }
+                : new() { Effort = Effort.Low },
+        };
+        return SupportsServerFallback(request.Model)
+            ? common with { Betas = [FallbackBeta], Fallbacks = new Default() }
+            : common;
+    }
+
+    private static BetaTextBlockParam SystemBlock(ModelRequest request) => request.CacheSystem
+        ? new() { Text = request.System, CacheControl = new BetaCacheControlEphemeral() }
+        : new() { Text = request.System };
 
     public static bool SupportsServerFallback(string model) =>
         model is "claude-opus-5-5" or "claude-sonnet-5-5" or "claude-fable-5-2";

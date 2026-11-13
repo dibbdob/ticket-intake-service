@@ -28,6 +28,7 @@ git log --graph --format='%h %s%n%b' main
 | 3 | `run-locally` | It had only ever run inside a test |
 | 4 | `production-concerns` | A model failure lost the customer's email; retries duplicated tickets; bursts piled up |
 | 5 | `operations` | Only the author could run it, and nothing said how it would be deployed |
+| 6 | `live-run` | It had only ever run in scripted mode: nothing showed the model's answers, or the copied extraction code, working for real |
 
 Three faults were found by looking at the running system, not by the tests, and each is in the commit
 that fixed it:
@@ -91,8 +92,14 @@ needs an API key in an ignored `.env`, and a spend limit on the key.
   and a retry with its key returned it; the cluster's Prometheus counted every ticket sent, and Grafana
   loaded the dashboard; under load the autoscaler went from one replica to its ceiling of three, across
   both workers, with no restarts.
-- **Not yet verified:** live mode against the Claude API, locally or on the cluster (`--live`), which needs a
-  decision about spending money; and a cloud deployment, with the changes ADR 0002 lists (a registry, a
+- **Run on GitHub:** `./build.sh`, by the `build` workflow on every push to `main` and every pull request.
+- **Verified live, on the kind cluster (`--live`), on 2026-11-13:** the key reached the pod from a Secret
+  and `/healthz` reported live mode on Claude Haiku 5.5. Four emails were extracted in about 1.5 seconds
+  each, for $0.0005 in all: an Enterprise outage became urgent, a question low, a double charge normal and
+  frustrated; an email telling the model to mark itself an outage was classified as the dashboard bug it
+  also described and sent to a person. A retry returned 200 and made no second ticket. Prometheus counted
+  four tickets, their tokens and cost; Tempo held the traces.
+- **Not yet verified:** a cloud deployment, with the changes ADR 0002 lists (a registry, a
   secret store through workload identity, an enforcing network plugin, TLS).
 
 ## Layout

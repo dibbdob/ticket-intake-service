@@ -1,0 +1,27 @@
+# The whole gate, ./build.sh, run on GitHub's machines on every push to main and every pull request, as it
+# runs locally: no model is called and nothing is spent.
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      # The deployment check reads the manifests with Python's yaml module; kubectl is already installed.
+      - run: sudo apt-get update -q && sudo apt-get install --yes --no-install-recommends python3-yaml
+      - name: ./build.sh, and the deployment safeguards really checked
+        run: |
+          set -o pipefail
+          ./build.sh | tee build.log
+          grep -q "the safeguards ADR 0002 relies on are all there" build.log
