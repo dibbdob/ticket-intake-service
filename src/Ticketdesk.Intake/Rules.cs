@@ -3,8 +3,11 @@ namespace Ticketdesk.Intake;
 using Ticketdesk.Extraction;
 
 /// <summary>
-/// The desk's rules, the same as the sibling repositories': a priority from what the customer reported,
-/// and a response deadline counted in business hours (Monday to Friday, 09:00 to 17:00 UTC).
+/// The desk's rules: a priority from what the customer reported, and a response deadline counted in business
+/// hours (Monday to Friday, 09:00 to 17:00 UTC). claude-code-governed-workflow owns them, in its
+/// response-deadline spec; Fixtures/desk-rules.json in the tests is a copy of its worked examples, and
+/// SharedRulesExamplesTests holds this code to them. Two things that repository has are not here, because
+/// the extractor cannot produce them: a `security` category, and public holidays.
 /// </summary>
 public static class Rules
 {
@@ -17,7 +20,7 @@ public static class Rules
     {
         { Outage: true, Plan: "enterprise" } => "urgent",
         { Outage: true } => "high",
-        { Category: "question" or "feature_request" } => "low",
+        { Category: "question" } => "low",
         _ => "normal",
     };
 

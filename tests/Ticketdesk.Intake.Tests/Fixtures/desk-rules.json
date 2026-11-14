@@ -1,0 +1,23 @@
+{
+  "_comment": "The desk's rules as worked examples, shared with the C# repositories. This is the canonical copy: claude-code-governed-workflow owns the rules (openspec/specs/response-deadline). ticket-intake-service and mcp-server-dotnet each hold a copy under their tests' Fixtures folder and fail if the code disagrees with it. Change the rules here, then copy this file; never edit a copy. Worked out by hand from the spec, not generated from the code. The cases use only what all three repositories have: no security category and no public holidays, which only this repository knows.",
+  "priority": [
+    { "case": "an outage on the enterprise plan", "category": "outage", "outage": true, "plan": "enterprise", "priority": "urgent" },
+    { "case": "an outage on the starter plan", "category": "outage", "outage": true, "plan": "starter", "priority": "high" },
+    { "case": "an outage with no plan recorded", "category": "outage", "outage": true, "plan": "unknown", "priority": "high" },
+    { "case": "an outage reported as a bug", "category": "bug", "outage": true, "plan": "team", "priority": "high" },
+    { "case": "a billing problem", "category": "billing", "outage": false, "plan": "enterprise", "priority": "normal" },
+    { "case": "a question", "category": "question", "outage": false, "plan": "starter", "priority": "low" },
+    { "case": "a feature request is routine", "category": "feature_request", "outage": false, "plan": "team", "priority": "normal" },
+    { "case": "a bug without an outage", "category": "bug", "outage": false, "plan": "unknown", "priority": "normal" },
+    { "case": "an account problem", "category": "account", "outage": false, "plan": "enterprise", "priority": "normal" }
+  ],
+  "deadline": [
+    { "case": "urgent, opened mid-morning on a Monday", "opened": "2026-11-16T10:00:00Z", "priority": "urgent", "due": "2026-11-16T14:00:00Z" },
+    { "case": "urgent, opened late on a Friday", "opened": "2026-11-13T16:00:00Z", "priority": "urgent", "due": "2026-11-16T12:00:00Z" },
+    { "case": "normal, opened on a Saturday", "opened": "2026-11-14T12:00:00Z", "priority": "normal", "due": "2026-11-18T17:00:00Z" },
+    { "case": "high, opened before opening time", "opened": "2026-11-17T08:00:00Z", "priority": "high", "due": "2026-11-17T17:00:00Z" },
+    { "case": "high, opened exactly at closing time", "opened": "2026-11-17T17:00:00Z", "priority": "high", "due": "2026-11-18T17:00:00Z" },
+    { "case": "low, forty hours is five whole days", "opened": "2026-11-16T09:00:00Z", "priority": "low", "due": "2026-11-20T17:00:00Z" },
+    { "case": "normal, opened half an hour before the weekend", "opened": "2026-11-13T16:30:00Z", "priority": "normal", "due": "2026-11-18T16:30:00Z" }
+  ]
+}
