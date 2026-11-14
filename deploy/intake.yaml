@@ -2,6 +2,7 @@
 #   the API key     a Secret, created by scripts/cluster-up.sh from the ignored .env, never in this file
 #   identity        its own service account, with no access to the Kubernetes API, which it never needs
 #   scaling         1 to 3 replicas by CPU; 4 extractions per replica, so at most 12 calls to the API at once
+#                   Tickets live in each pod's memory: see docs/runbook.md before running more than one replica
 #   health          startup, readiness and liveness probes on /healthz
 #   containment     non-root, read-only filesystem, no capabilities, resource requests and limits
 apiVersion: v1

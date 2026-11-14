@@ -75,5 +75,20 @@ For live extraction, put the key in `.env` and run `scripts/cluster-up.sh --live
 the service switches mode. Raise the replica ceiling or the per-replica concurrency only against the API's
 rate limit: their product is the most the service asks of the API at once.
 
+### The store is in memory, so these manifests are not safe to rely on as they are
+
+Tickets and Idempotency-Keys are kept in the memory of the pod that received them (`TicketStore`). Three
+things follow, and the autoscaler makes the first two ordinary:
+
+- With more than one replica, a ticket made on one pod answers `GET /tickets/{id}` with 404 from the others,
+  and a retry with the same Idempotency-Key that lands on another pod makes a second ticket.
+- A pod that restarts, or is replaced in a rollout, takes its tickets with it.
+- So an email the service accepted is only as safe as the pod that holds it. "An email is never lost to the
+  model" (ADR 0001) is about the model; it does not extend to the store.
+
+Until a database replaces `TicketStore`, either run one replica (set `maxReplicas: 1` in `deploy/intake.yaml`
+and do not roll out while tickets matter), or treat the service as a demonstration whose tickets are
+disposable. The in-memory store is the only thing to replace: nothing else in the service depends on it.
+
 On a cloud's managed Kubernetes, the same manifests apply with the changes ADR 0002 lists: the image from a
 registry, the key from the cloud's secret store through workload identity, and an ingress with TLS.
